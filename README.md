@@ -20,32 +20,29 @@ pip install jaxellip
 
 ```python
 import jaxellip
+import jax.numpy as jnp
 
-jaxellip.ellipk(0.5) # Complete elliptic integral of the first kind
-jaxellip.ellipkm1(0.5) # Complete elliptic integral of the first kind around m = 1
-jaxellip.ellipe(0.5) # Complete elliptic integral of the second kind
+input = jnp.linspace(-10, 10, 1000)
+
+jaxellip.ellipk(input) # Complete elliptic integral of the first kind
+jaxellip.ellipkm1(input) # Complete elliptic integral of the first kind around m = 1
+jaxellip.ellipe(input) # Complete elliptic integral of the second kind
 ```
 
 ## Elliptic integrals
 
-The elliptic integrals in jaxellip follow the same parameter conventions as `scipy.special`. In particular, the input parameter $m$ is the elliptic parameter, defined as $m = k^2$, where $k$ is the modulus. This differs from some literature or libraries (e.g., Boost or Abramowitz & Stegun), where the integrals are sometimes expressed in terms of $k$ directly.
+The elliptic integrals in `jaxellip` follow the same parameter conventions as `scipy.special`. In particular, the input parameter $m$ is the elliptic parameter, defined as $m = k^2$, where $k$ is the modulus. This differs from some literature or libraries (e.g., Boost or Abramowitz & Stegun), where the integrals are sometimes expressed in terms of $k$ directly.
 
 The function `ellipkm1(m)` computes the complete elliptic integral of the first kind with argument $1 - m$, i.e., $K(1 - m)$. This is particularly useful for improved numerical stability and precision when $m$ is close to 1, since $K(m)$ diverges logarithmically as $m \to 1$.
 
-### Complete elliptic integral of the first kind
+### Complete elliptic integral of the first kind (`ellipk` and `ellipkm1`)
 
 $$
 K(m) = \int_0^{\pi/2} \frac{1}{\sqrt{1 - m \sin^2 \theta}}  d\theta
 $$
 
-### Complete elliptic integral of the second kind
+### Complete elliptic integral of the second kind (`ellipe`)
 
 $$
 E(m) = \int_0^{\pi/2} \sqrt{1 - m \sin^2 \theta}  d\theta
-$$
-
-### Complete elliptic integral of the third kind
-
-$$
-\Pi(n, m) = \int_0^{\pi/2} \frac{1}{(1 - n \sin^2 \theta) \sqrt{1 - m \sin^2 \theta}}  d\theta
 $$
