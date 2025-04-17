@@ -1,0 +1,79 @@
+name: Test
+
+# GitHub events that triggers the workflow:
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+  workflow_call: # to make the workflow triggerable from other workflows (publish-to-pypi.yaml)
+  workflow_dispatch: # to make the workflow triggerable manually
+
+# The workflow:
+jobs:
+  test:
+    name: Test with Py${{ matrix.python-version }} on ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, windows, macos]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Hatch
+        uses: pypa/hatch@install
+
+      - name: Test
+        run: hatch run test.py${{ matrix.python-version }}:test-and-report
+
+      - name: Rename the coverage file
+        run: mv .coverage .coverage.${{ matrix.python-version }}.${{ matrix.os }}
+
+      - name: Upload coverage as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+          path: .coverage.${{ matrix.python-version }}.${{ matrix.os }}
+
+  report-coverage:
+    # Run only if the workflow was triggered by a push event
+    if: github.event_name == 'push'
+    name: Generate the coverage report
+    needs: [test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download coverage files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-* # download all the uploaded coverage reports
+          path: coverage
+          merge-multiple: true # download them in the same folder
+
+      - name: Install Hatch
+        uses: pypa/hatch@install
+
+      - name: Combine coverage files
+        run: |
+          hatch run coverage combine coverage
+          hatch run coverage report
+          hatch run coverage html --show-contexts --title "jaxellip coverage for ${{ github.sha }}"
+
+      - name: Upload the coverage report to smokeshow
+        run: |
+          pip install smokeshow==0.4.0
+          smokeshow upload ./htmlcov
+        env:
+          SMOKESHOW_GITHUB_STATUS_DESCRIPTION: Coverage {coverage-percentage}
+          SMOKESHOW_GITHUB_COVERAGE_THRESHOLD: 90
+          SMOKESHOW_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SMOKESHOW_GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

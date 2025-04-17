@@ -1,0 +1,129 @@
+[build-system]
+requires = [
+    "hatchling==1.27.0",
+] 
+build-backend = "hatchling.build" 
+
+[tool.hatch.build.targets.wheel]
+packages = ["jaxellip"]
+
+[tool.hatch.version]
+path = "jaxellip/__init__.py"
+
+[project]
+name = 'jaxellip'
+description = 'Some elliptic integrals in JAX'
+authors = [{ name = 'Sina Atalay', email = 'dev@atalay.biz' }]
+license = "MIT"
+readme = "README.md"
+requires-python = '>=3.10'
+dependencies = [
+    'jax>=0.6.0',   
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+] 
+dynamic = ["version"]
+
+[project.urls]
+Source = 'https://github.com/sinaatalay/jaxellip'
+
+[tool.hatch.envs.default]
+installer = "uv"
+python = "3.13"
+dependencies = [
+    "ruff",               
+    "black",              
+    "ipython",            
+    "pyright",            
+    "pre-commit",         
+    "pytest",      
+    "coverage",
+    "scipy>=1.15.2", 
+]
+[tool.hatch.envs.default.scripts]
+format = "black jaxellip tests && ruff check --fix && ruff format" # hatch run format
+lint = "ruff check" # hatch run lint
+check-types = "pyright jaxellip tests" # hatch run check-types
+precommit = "pre-commit run --all-files" # hatch run pre-commit
+test = "pytest" # hatch run test
+test-and-report = "coverage run -m pytest && coverage report && coverage html --show-contexts" # hatch run test-and-report
+
+
+[tool.hatch.envs.test]
+template = "default"
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "ARG", # flake8-unused-arguments
+    "C4",  # flake8-comprehensions
+    "EM",  # flake8-errmsg
+    "ICN", # flake8-import-conventions
+    "ISC", # flake8-implicit-str-concat
+    "G",   # flake8-logging-format
+    "PGH", # pygrep-hooks
+    "PIE", # flake8-pie
+    "PL",  # pylint
+    "PT",  # flake8-pytest-style
+    "PTH", # flake8-use-pathlib
+    "RET", # flake8-return
+    "RUF", # Ruff-specific
+    "SIM", # flake8-simplify
+    "T20", # flake8-print
+    "UP",  # pyupgrade
+    "YTT", # flake8-2020
+    "EXE", # flake8-executable
+    "NPY", # NumPy specific rules
+    "PD",  # pandas-vet
+]
+ignore = [
+    "PLR",    # Design related pylint codes
+    "ISC001", # Conflicts with formatter
+    "UP007",  # I like Optional type
+    "PGH003", # It would be nice to not ignore this
+]
+flake8-unused-arguments.ignore-variadic-names = true
+
+[tool.black]
+line-length = 88 
+preview = true # to allow enable-unstable-feature
+enable-unstable-feature = [
+    "string_processing",
+] # to break strings into multiple lines
+
+[tool.pyright]
+reportIncompatibleVariableOverride = false
+reportIncompatibleMethodOverride = false   
+
+[tool.coverage.run]
+source = ['jaxellip']            
+relative_files = true
+
+[tool.coverage.report]
+# Don't include these lines in the coverage report:
+exclude_lines = ["if __name__ == .__main__.:"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "-ra",              # Show extra test summary info for all tests
+    "-v",               # Increase verbosity
+    "--strict-markers", # Don't allow unknown markers
+    "--strict-config",  # Always fail if there are unknown configuration options
+]
+testpaths = ["tests"]
