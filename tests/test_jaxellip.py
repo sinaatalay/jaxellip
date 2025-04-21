@@ -7,8 +7,29 @@ import scipy.special
 
 import jaxellip
 
+jax.config.update("jax_enable_x64", True)
+
+RELATIVE_TOLERANCES_AGAINST_SCIPY = {
+    "ellipk": 1e-30,
+    "ellipkm1": 1e-30,
+    "ellipe": 1e-14,
+}
+TIME_TOLERANCE_AGAINST_SCIPY = 1  # Maximun two times slower
+
+SCIPY_FINITE_DIFFERENCE_STEP_SIZE_RATIO = 9e-8
+RELATIVE_TOLERANCE_AGAINST_SCIPY_FINITE_DIFFERENCE_DERIVATIVES = 8e-4
+
+
 functions = ["ellipk", "ellipkm1", "ellipe"]
-inputs = jnp.linspace(-10, 10, 1000)
+a_lot_of_numbers = jnp.concatenate(
+    [jnp.linspace(-1e9, 0, 100000), jnp.linspace(0, 1.1, 100000)]
+)
+assert a_lot_of_numbers.max() > 1.0
+inputs: dict[str, jax.Array] = {
+    "ellipk": a_lot_of_numbers,
+    "ellipkm1": jnp.linspace(0.5, 1.0, 100000),
+    "ellipe": a_lot_of_numbers,
+}
 
 
 def time_it(function, inputs):
@@ -19,44 +40,54 @@ def time_it(function, inputs):
 
 @pytest.mark.parametrize("function_name", functions)
 def test_elliptic_integrals(function_name):
-    relative_tolerance = 1e-4
-    time_tolerance = 1.5  # It's okay to be 50% slower
-
     scipy_function = getattr(scipy.special, function_name)
     jax_function = getattr(jaxellip, function_name)
 
-    scipy_time, scipy_result = time_it(scipy_function, inputs)
+    input = inputs[function_name]
 
-    jax_function(inputs)  # to JIT
+    scipy_time, scipy_result = time_it(scipy_function, input)
 
-    jax_time, jax_result = time_it(jax_function, inputs)
+    jax_function(input)  # to JIT
+
+    jax_time, jax_result = time_it(jax_function, input)
 
     # Drop nan values
     jax_result = jax_result[~jnp.isnan(jax_result)]
     scipy_result = scipy_result[~jnp.isnan(scipy_result)]
 
-    assert jax_result == pytest.approx(scipy_result, rel=relative_tolerance)
-    assert jax_time < scipy_time * time_tolerance
+    assert jax_result == pytest.approx(
+        scipy_result, rel=RELATIVE_TOLERANCES_AGAINST_SCIPY[function_name]
+    )
+    assert abs(jax_time - scipy_time) / scipy_time < TIME_TOLERANCE_AGAINST_SCIPY
 
 
 @pytest.mark.parametrize("function_name", functions)
 def test_elliptic_integrals_derivatives(function_name):
-    relative_tolerance = 3e-3
-
     scipy_function = getattr(scipy.special, function_name)
     jax_function = getattr(jaxellip, function_name)
 
-    epsilon = 7e-4
+    input = inputs[function_name]
+
+    epsilon = SCIPY_FINITE_DIFFERENCE_STEP_SIZE_RATIO * input
     scipy_finite_difference_derivatives = (
-        scipy_function(inputs + epsilon) - scipy_function(inputs - epsilon)
+        scipy_function(input + epsilon) - scipy_function(input - epsilon)
     ) / (2 * epsilon)
 
-    jax_derivatives = jax.vmap(jax.grad(jax_function))(inputs)
+    jax_derivatives = jax.vmap(jax.grad(jax_function))(input)
 
     # Drop nan values
-    jax_derivatives = jax_derivatives[~jnp.isnan(jax_derivatives)]
-    scipy_derivatives = scipy_finite_difference_derivatives[
-        ~jnp.isnan(scipy_finite_difference_derivatives)
-    ]
+    jax_derivative_nan_indices = jnp.isnan(jax_derivatives)
+    scipy_finite_difference_derivatives_nan_indices = jnp.isnan(
+        scipy_finite_difference_derivatives
+    )
+    nan_indices = jnp.logical_or(
+        jax_derivative_nan_indices, scipy_finite_difference_derivatives_nan_indices
+    )
 
-    assert jax_derivatives == pytest.approx(scipy_derivatives, rel=relative_tolerance)
+    jax_derivatives = jax_derivatives[~nan_indices]
+    scipy_derivatives = scipy_finite_difference_derivatives[~nan_indices]
+
+    assert jax_derivatives == pytest.approx(
+        scipy_derivatives,
+        rel=RELATIVE_TOLERANCE_AGAINST_SCIPY_FINITE_DIFFERENCE_DERIVATIVES,
+    )
