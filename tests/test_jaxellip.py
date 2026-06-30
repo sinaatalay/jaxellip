@@ -1,4 +1,6 @@
 import time
+from collections.abc import Callable
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -9,6 +11,9 @@ import scipy.special
 import jaxellip
 
 jax.config.update("jax_enable_x64", True)
+
+type NumericArray = jax.Array | np.ndarray
+type NumericFunction = Callable[[NumericArray], NumericArray]
 
 # Worst-case relative agreement with SciPy actually achieved across the tested
 # range is ~2e-14 (ellipk, at m = -1e9), ~8e-16 (ellipkm1) and ~7e-15 (ellipe).
@@ -57,33 +62,40 @@ derivative_inputs: dict[str, jax.Array] = {
 }
 
 
-def time_it(function, inputs):
+def time_it(
+    function: NumericFunction, input_values: NumericArray
+) -> tuple[float, NumericArray]:
     # jax.block_until_ready forces JAX's asynchronous dispatch to finish, so we
     # time the real computation rather than just the dispatch; it is a no-op for
     # SciPy's NumPy results. The minimum over several repeats is the runtime
     # estimate least sensitive to scheduling noise (noise only adds time).
-    best_time = float("inf")
-    result = None
-    for _ in range(NUMBER_OF_TIMING_REPEATS):
+    start_time = time.perf_counter()
+    result = jax.block_until_ready(function(input_values))
+    best_time = time.perf_counter() - start_time
+
+    for _ in range(NUMBER_OF_TIMING_REPEATS - 1):
         start_time = time.perf_counter()
-        result = jax.block_until_ready(function(inputs))
+        result = jax.block_until_ready(function(input_values))
         best_time = min(best_time, time.perf_counter() - start_time)
+
     return best_time, result
 
 
 @pytest.mark.parametrize("function_name", functions)
-def test_elliptic_integrals(function_name):
-    scipy_function = getattr(scipy.special, function_name)
-    jax_function = getattr(jaxellip, function_name)
+def test_elliptic_integrals(function_name: str) -> None:
+    scipy_function = cast(NumericFunction, getattr(scipy.special, function_name))
+    jax_function = cast(NumericFunction, getattr(jaxellip, function_name))
 
-    input = inputs[function_name]
-    scipy_input = np.asarray(input)  # SciPy's native input, for a fair comparison
+    input_values = inputs[function_name]
+    scipy_input = np.asarray(
+        input_values
+    )  # SciPy's native input, for a fair comparison
 
     scipy_time, scipy_result = time_it(scipy_function, scipy_input)
 
-    jax_function(input)  # trigger the one-time JIT compilation before timing
+    jax_function(input_values)  # trigger the one-time JIT compilation before timing
 
-    jax_time, jax_result = time_it(jax_function, input)
+    jax_time, jax_result = time_it(jax_function, input_values)
     jax_result = np.asarray(jax_result)
 
     # Compare where both are finite, using a single shared mask so the two arrays
@@ -100,16 +112,18 @@ def test_elliptic_integrals(function_name):
 
 
 @pytest.mark.parametrize("function_name", functions)
-def test_elliptic_integrals_derivatives(function_name):
-    jax_function = getattr(jaxellip, function_name)
+def test_elliptic_integrals_derivatives(function_name: str) -> None:
+    jax_function = cast(
+        Callable[[jax.Array], jax.Array], getattr(jaxellip, function_name)
+    )
 
-    input = derivative_inputs[function_name]
+    input_values = derivative_inputs[function_name]
 
     # ——— analytic derivatives, computed from SciPy's K(m) and E(m) ———
     # ellipk(m) and ellipe(m) are differentiated with respect to m directly.
     # ellipkm1(x) = K(1 - x) is differentiated with respect to x, so by the
     # chain rule d/dx ellipkm1(x) = -dK/dm evaluated at m = 1 - x.
-    m = np.asarray(input)
+    m = np.asarray(input_values)
     if function_name == "ellipkm1":
         m = 1.0 - m
     K = scipy.special.ellipk(m)
@@ -125,7 +139,7 @@ def test_elliptic_integrals_derivatives(function_name):
     else:
         analytic_derivatives = (E - K) / (2.0 * m)
 
-    jax_derivatives = np.asarray(jax.vmap(jax.grad(jax_function))(input))
+    jax_derivatives = np.asarray(jax.vmap(jax.grad(jax_function))(input_values))
 
     # Compare where both are finite, using a single shared mask so the two
     # arrays stay aligned.

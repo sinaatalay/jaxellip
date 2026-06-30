@@ -47,66 +47,89 @@ $$
 
 ## Developer Guide
 
-1. Install [Hatch](https://hatch.pypa.io/latest/). The installation guide for Hatch can be found [here](https://hatch.pypa.io/latest/install/#installation).
-   
-    Hatch is a Python project manager. It mainly allows you to define the virtual environments you need in [`pyproject.toml`](https://github.com/sinaatalay/jaxellip/blob/main/pyproject.toml). Then, it takes care of the rest. Also, you don't need to install Python. Hatch will install it when you follow the steps below.
+The repository uses [uv](https://docs.astral.sh/uv/) for Python packaging and dependency management, [just](https://just.systems/) for project commands, [prek](https://prek.j178.dev/) for hooks, Ruff for formatting and linting, and ty for type checking. The package source lives in `src/jaxellip`.
 
-2. Clone the repository.
-    ```
-    git clone https://github.com/sinaatalay/jaxellip.git
-    ```
-3. Go to the `jaxellip` directory.
-    ```
-    cd jaxellip
-    ```
-4. Start using one of the virtual environments by activating it in the terminal.
+1. Install uv and just.
 
-    Default development environment with Python 3.13:
-    ```bash
-    hatch shell default
-    ```
-
-    The same environment, but with Python 3.12 (or 3.13):
-    ```bash
-    hatch shell test.py3.12
-    ```
-
-5. Finally, activate the virtual environment in your integrated development environment (IDE). In Visual Studio Code:
-
-    - Press `Ctrl+Shift+P`.
-    - Type `Python: Select Interpreter`.
-    - Select one of the virtual environments created by Hatch.
-
-### Hatch scripts
-
-Hatch allows you to run scripts defined in [`pyproject.toml`](https://github.com/sinaatalay/jaxellip/blob/main/pyproject.toml).
-
-Format the code with `black` and `ruff`:
 ```bash
-hatch run format
+curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install just
+```
+
+2. Clone the repository and enter it.
+
+```bash
+git clone https://github.com/sinaatalay/jaxellip.git
+cd jaxellip
+```
+
+3. Sync the locked development environment.
+
+```bash
+just sync
+```
+
+4. Install the local hooks.
+
+```bash
+uv run --frozen prek install
+```
+
+Use `.venv` as the interpreter in your editor. All developer commands should go through `just`.
+
+### Commands
+
+Format the code with Ruff:
+```bash
+just format
 ```
 
 Lint the code with `ruff`:
 ```bash
-hatch run lint
+just lint
 ```
 
-Check the types with `pyright`:
+Check the types with ty:
 ```bash
-hatch run check-types
+just check-types
 ```
 
-Run the pre-commit hooks:
+Run spell checking with typos:
 ```bash
-hatch run precommit
+just spell
+```
+
+Run the prek hooks:
+```bash
+just prek
+```
+
+Run the full static check:
+```bash
+just check
 ```
 
 Run the tests:
 ```bash
-hatch run test
+just test
 ```
 
 Run the tests and generate a coverage report:
 ```bash
-hatch run test-and-report
+just test-and-report
+```
+
+Build the source distribution and wheel:
+```bash
+just build
+```
+
+### Release
+
+The package version is stored in `pyproject.toml`. To prepare a release, update the version with uv, regenerate the lockfile, and tag the release with a leading `v`.
+
+```bash
+uv version 0.1.0
+just lock
+git tag -a v0.1.0 -m v0.1.0
 ```
