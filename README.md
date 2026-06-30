@@ -45,91 +45,46 @@ $$
 E(m) = \int_0^{\pi/2} \sqrt{1 - m \sin^2 \theta}  d\theta
 $$
 
+## Numerical Method
+
+TODO: Describe the formulas, approximation method, domains, and error estimates.
+
 ## Developer Guide
 
-The repository uses [uv](https://docs.astral.sh/uv/) for Python packaging and dependency management, [just](https://just.systems/) for project commands, [prek](https://prek.j178.dev/) for hooks, Ruff for formatting and linting, and ty for type checking. The package source lives in `src/jaxellip`.
+Install:
 
-1. Install uv and just.
+1. [Visual Studio Code](https://code.visualstudio.com/)
+2. [uv](https://docs.astral.sh/uv/)
+3. [just](https://just.systems/)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 brew install just
 ```
 
-2. Clone the repository and enter it.
+Clone and set up:
 
 ```bash
 git clone https://github.com/sinaatalay/jaxellip.git
 cd jaxellip
-```
-
-3. Sync the locked development environment.
-
-```bash
 just sync
+code .
 ```
 
-4. Install the local hooks.
+Use `.venv` as the Python interpreter in VS Code.
+
+Repository layout:
+
+- `src/jaxellip/`: package code
+- `tests/`: tests against SciPy and JAX autodiff
+- `pyproject.toml`: package metadata and tool settings
+- `uv.lock`: locked dependency versions
+- `justfile`: development commands
+
+Common commands:
 
 ```bash
-uv run --frozen prek install
-```
-
-Use `.venv` as the interpreter in your editor. All developer commands should go through `just`.
-
-### Commands
-
-Format the code with Ruff:
-```bash
-just format
-```
-
-Lint the code with `ruff`:
-```bash
-just lint
-```
-
-Check the types with ty:
-```bash
-just check-types
-```
-
-Run spell checking with typos:
-```bash
-just spell
-```
-
-Run the prek hooks:
-```bash
-just prek
-```
-
-Run the full static check:
-```bash
-just check
-```
-
-Run the tests:
-```bash
-just test
-```
-
-Run the tests and generate a coverage report:
-```bash
-just test-and-report
-```
-
-Build the source distribution and wheel:
-```bash
-just build
-```
-
-### Release
-
-The package version is stored in `pyproject.toml`. To prepare a release, update the version with uv, regenerate the lockfile, and tag the release with a leading `v`.
-
-```bash
-uv version 0.1.0
-just lock
-git tag -a v0.1.0 -m v0.1.0
+just test    # run tests
+just check   # run all checks
+just format  # format code
 ```

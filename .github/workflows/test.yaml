@@ -30,9 +30,6 @@ jobs:
       - name: Check
         run: just check
 
-      - name: Run prek hooks
-        run: just prek
-
   test:
     name: Test with Py${{ matrix.python-version }} on ${{ matrix.os }}
 

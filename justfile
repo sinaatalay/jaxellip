@@ -12,23 +12,8 @@ format:
     uv run --frozen ruff check --fix src tests
     uv run --frozen ruff format src tests
 
-format-file target:
-    uv run --frozen ruff check --fix {{target}}
-    uv run --frozen ruff format {{target}}
-
-lint:
-    uv run --frozen ruff check src tests
-
-check-types:
-    uv run --frozen ty check src tests
-
-spell:
-    uv run --frozen typos --force-exclude
-
-prek:
+check:
     uv run --frozen prek run --all-files
-
-check: lint check-types spell
 
 # Testing
 test:
