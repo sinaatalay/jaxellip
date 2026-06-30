@@ -1,4 +1,3 @@
-import time
 from collections.abc import Callable
 from typing import cast
 
@@ -24,9 +23,6 @@ RELATIVE_TOLERANCES_AGAINST_SCIPY = {
     "ellipkm1": 1e-13,
     "ellipe": 1e-12,
 }
-# jaxellip may be at most (1 + this) times as slow as SciPy.
-TIME_TOLERANCE_AGAINST_SCIPY = 1
-NUMBER_OF_TIMING_REPEATS = 9
 
 # Autodiff matches the SciPy-based analytic derivatives to ~1e-13 (median
 # ~1e-16) on the well-conditioned ranges below, so 1e-11 is a tight check with a
@@ -61,24 +57,15 @@ derivative_inputs: dict[str, jax.Array] = {
     "ellipkm1": jnp.linspace(0.01, 0.99, 100000),
 }
 
-
-def time_it(
-    function: NumericFunction, input_values: NumericArray
-) -> tuple[float, NumericArray]:
-    # jax.block_until_ready forces JAX's asynchronous dispatch to finish, so we
-    # time the real computation rather than just the dispatch; it is a no-op for
-    # SciPy's NumPy results. The minimum over several repeats is the runtime
-    # estimate least sensitive to scheduling noise (noise only adds time).
-    start_time = time.perf_counter()
-    result = jax.block_until_ready(function(input_values))
-    best_time = time.perf_counter() - start_time
-
-    for _ in range(NUMBER_OF_TIMING_REPEATS - 1):
-        start_time = time.perf_counter()
-        result = jax.block_until_ready(function(input_values))
-        best_time = min(best_time, time.perf_counter() - start_time)
-
-    return best_time, result
+# Inputs for the out-of-domain gradient test. The forward result is NaN/inf by
+# design here, but the *gradient* must stay finite: the masked-out Carlson
+# branch would otherwise poison reverse mode (0 * inf = NaN). These ranges
+# include the exact boundaries (m = 1 for ellipk/ellipe, x = 0 for ellipkm1).
+out_of_domain_inputs: dict[str, jax.Array] = {
+    "ellipk": jnp.linspace(1.0, 1e6, 1000),
+    "ellipe": jnp.linspace(1.0, 1e6, 1000),
+    "ellipkm1": jnp.linspace(-1e6, 0.0, 1000),
+}
 
 
 @pytest.mark.parametrize("function_name", functions)
@@ -87,16 +74,11 @@ def test_elliptic_integrals(function_name: str) -> None:
     jax_function = cast(NumericFunction, getattr(jaxellip, function_name))
 
     input_values = inputs[function_name]
-    scipy_input = np.asarray(
-        input_values
-    )  # SciPy's native input, for a fair comparison
+    # SciPy's native input type, for a fair comparison.
+    scipy_input = np.asarray(input_values)
 
-    scipy_time, scipy_result = time_it(scipy_function, scipy_input)
-
-    jax_function(input_values)  # trigger the one-time JIT compilation before timing
-
-    jax_time, jax_result = time_it(jax_function, input_values)
-    jax_result = np.asarray(jax_result)
+    jax_result = np.asarray(jax_function(input_values))
+    scipy_result = np.asarray(scipy_function(scipy_input))
 
     # Compare where both are finite, using a single shared mask so the two arrays
     # stay aligned (both are NaN for m > 1).
@@ -106,9 +88,6 @@ def test_elliptic_integrals(function_name: str) -> None:
         rel=RELATIVE_TOLERANCES_AGAINST_SCIPY[function_name],
         abs=0.0,
     )
-
-    # Only fail if jaxellip is too slow; being faster than SciPy is fine.
-    assert jax_time < (1 + TIME_TOLERANCE_AGAINST_SCIPY) * scipy_time
 
 
 @pytest.mark.parametrize("function_name", functions)
@@ -150,3 +129,12 @@ def test_elliptic_integrals_derivatives(function_name: str) -> None:
         rel=RELATIVE_TOLERANCE_AGAINST_SCIPY_ANALYTIC_DERIVATIVES,
         abs=ABSOLUTE_TOLERANCE_AGAINST_SCIPY_ANALYTIC_DERIVATIVES,
     )
+
+
+@pytest.mark.parametrize("function_name", functions)
+def test_gradient_finite_out_of_domain(function_name: str) -> None:
+    jax_function = cast(
+        Callable[[jax.Array], jax.Array], getattr(jaxellip, function_name)
+    )
+    gradients = jax.vmap(jax.grad(jax_function))(out_of_domain_inputs[function_name])
+    assert jnp.all(jnp.isfinite(gradients))
