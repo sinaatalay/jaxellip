@@ -1,7 +1,7 @@
 [build-system]
 requires = [
-    "hatchling==1.27.0",
-] 
+    "hatchling==1.30.1",
+]
 build-backend = "hatchling.build" 
 
 [tool.hatch.build.targets.wheel]
@@ -16,18 +16,16 @@ description = 'Some elliptic integrals in JAX'
 authors = [{ name = 'Sina Atalay', email = 'dev@atalay.biz' }]
 license = "MIT"
 readme = "README.md"
-requires-python = '>=3.10'
+requires-python = '>=3.12'
 dependencies = [
-    'jax>=0.6.0',   
+    'jax>=0.10.2',
 ]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Intended Audience :: Education",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-] 
+]
 dynamic = ["version"]
 
 [project.urls]
@@ -37,14 +35,14 @@ Source = 'https://github.com/sinaatalay/jaxellip'
 installer = "uv"
 python = "3.13"
 dependencies = [
-    "ruff",               
-    "black",              
-    "ipython",            
-    "pyright",            
-    "pre-commit",         
-    "pytest",      
-    "coverage",
-    "scipy>=1.15.2", 
+    "ruff>=0.15.20",
+    "black>=26.5.1",
+    "ipython>=9.15.0",
+    "pyright>=1.1.411",
+    "pre-commit>=4.6.0",
+    "pytest>=9.1.1",
+    "coverage>=7.14.3",
+    "scipy>=1.18.0",
 ]
 [tool.hatch.envs.default.scripts]
 format = "black jaxellip tests && ruff check --fix && ruff format" # hatch run format
@@ -58,7 +56,7 @@ test-and-report = "coverage run -m pytest && coverage report && coverage html --
 [tool.hatch.envs.test]
 template = "default"
 [[tool.hatch.envs.test.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
+python = ["3.12", "3.13"]
 
 
 [tool.ruff]

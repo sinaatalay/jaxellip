@@ -127,9 +127,15 @@ def ellipk(m: jax.Array) -> jax.Array:
             - K(1) = +inf
             - NaN for m > 1
     """
-    rf, _ = _compute_rf_rd(jnp.zeros_like(m), 1.0 - m, jnp.ones_like(m))
     inf_mask = m == 1.0
     nan_mask = m > 1.0
+    # Evaluate R_F on an in-domain stand-in wherever the result is overridden
+    # below (m >= 1). Otherwise 1 - m <= 0 feeds a sqrt of a non-positive number
+    # into the Carlson iteration; the forward value is masked out, but its
+    # NaN/inf would still poison the reverse-mode gradient (0 * inf = NaN). With
+    # the stand-in, grad(ellipk) stays finite out of domain.
+    safe_m = jnp.where(inf_mask | nan_mask, 0.5, m)
+    rf, _ = _compute_rf_rd(jnp.zeros_like(safe_m), 1.0 - safe_m, jnp.ones_like(safe_m))
     result = jnp.where(inf_mask, jnp.inf, rf)
     return jnp.where(nan_mask, jnp.nan, result)
 
@@ -149,11 +155,19 @@ def ellipkm1(x: jax.Array) -> jax.Array:
     Returns:
         K(1 - x) array with high accuracy near x = 0.
     """
+    pole_mask = x == 0.0  # ellipkm1(0) = K(1) = +inf
+    nan_mask = x < 0.0  # 1 - x > 1 is out of domain
+    # Keep the logarithm's argument strictly positive wherever the result is
+    # overridden below, so the unused series branch contributes a finite (not
+    # NaN) gradient and grad(ellipkm1) stays finite out of domain.
+    safe_x = jnp.where(x > 0.0, x, 1.0)
     use_series = x < 1e-3
-    log_term = jnp.log(16.0 / x)
-    series_approx = 0.5 * log_term + (x / 16.0) * (log_term - 1.0)
+    log_term = jnp.log(16.0 / safe_x)
+    series_approx = 0.5 * log_term + (safe_x / 16.0) * (log_term - 1.0)
 
-    return jnp.where(use_series, series_approx, ellipk(1.0 - x))
+    result = jnp.where(use_series, series_approx, ellipk(1.0 - x))
+    result = jnp.where(pole_mask, jnp.inf, result)
+    return jnp.where(nan_mask, jnp.nan, result)
 
 
 @jax.jit
@@ -171,8 +185,14 @@ def ellipe(m: jax.Array) -> jax.Array:
             - E(1) = 1
             - NaN for m > 1
     """
-    rf, rd = _compute_rf_rd(jnp.zeros_like(m), 1.0 - m, jnp.ones_like(m))
-    val = rf - (m / 3.0) * rd
+    one_mask = m == 1.0
+    nan_mask = m > 1.0
+    # In-domain stand-in for the overridden points (m >= 1), so the Carlson
+    # iteration never differentiates through an out-of-domain argument and
+    # grad(ellipe) stays finite at and beyond m = 1 (see ellipk for details).
+    safe_m = jnp.where(one_mask | nan_mask, 0.5, m)
+    rf, rd = _compute_rf_rd(jnp.zeros_like(safe_m), 1.0 - safe_m, jnp.ones_like(safe_m))
+    val = rf - (safe_m / 3.0) * rd
     # first force the known endpoint
-    val = jnp.where(m == 1.0, 1.0, val)
-    return jnp.where(m > 1.0, jnp.nan, val)
+    val = jnp.where(one_mask, 1.0, val)
+    return jnp.where(nan_mask, jnp.nan, val)

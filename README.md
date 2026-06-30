@@ -66,9 +66,9 @@ $$
     hatch shell default
     ```
 
-    The same environment, but with Python 3.10 (or 3.11, 3.12, 3.13):
+    The same environment, but with Python 3.12 (or 3.13):
     ```bash
-    hatch shell test.py3.10
+    hatch shell test.py3.12
     ```
 
 5. Finally, activate the virtual environment in your integrated development environment (IDE). In Visual Studio Code:
