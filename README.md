@@ -46,65 +46,18 @@ $$
 
 ## Numerical Method
 
-`jaxellip` evaluates the complete elliptic integrals through Carlson symmetric
-forms:
+`ellipk` and `ellipe` use the same Cephes minimax polynomials as SciPy: a degree-10 polynomial in the complementary parameter $1 - m$ plus a logarithmic term, with negative $m$ reduced to $[0, 1)$ by the Landen transformation. `ellipkm1(x)` evaluates $K(1 - x)$ from $x$ directly (never forming $1 - x$) and uses a logarithmic series for $x < 10^{-8}$. The forward pass does not iterate.
 
-- `ellipk(m) = R_F(0, 1 - m, 1)`
-- `ellipe(m) = R_F(0, 1 - m, 1) - (m / 3) R_D(0, 1 - m, 1)`
-- `ellipkm1(x) = K(1 - x) = R_F(0, x, 1)` away from the singular point
+Derivatives use exact custom JVP rules instead of differentiating the polynomial. Each reduces to the Carlson symmetric integral $R_D$ (for example, $dK/dm = R_D(0, 1, 1-m)/6$), evaluated by a short fixed iteration whose only zero argument is handled in closed form. This makes `jaxellip` differentiable in every JAX mode (forward, reverse, and higher order such as `jax.hessian`), so it stays correct inside a larger function that is differentiated as a whole.
 
-`R_F` and `R_D` are computed by a fixed-count Carlson duplication iteration using
-14 steps. The fixed count keeps the implementation compatible with `jax.jit`,
-`jax.vmap`, forward-mode AD, reverse-mode AD, and higher-order AD while driving
-the iteration to the float64 round-off floor over the tested domain.
+Edge cases match SciPy: `ellipk(1)` is `inf`, `ellipe(1)` is `1`, `ellipkm1(0)` is `inf`, and out-of-domain inputs (`m > 1`, or `x < 0`) return `NaN` for both value and gradient.
 
-For very small positive `x`, `ellipkm1(x)` uses the logarithmic expansion
+## Comparison against SciPy
 
-```text
-K(1 - x) = 0.5 L + (x / 8) (L - 2),  L = log(16) - log(x)
-```
+`jaxellip` is tested against `mpmath` (a high-precision reference) and `scipy.special`:
 
-for `x < 1e-8`. The switch point lies in the overlap where the series and direct
-Carlson form agree to round-off. The log is written as `log(16) - log(x)` so AD
-does not form an overflowing `1 / x**2` term for tiny `x`.
-
-The Carlson iteration contains square roots at zero. Plain `sqrt(0)` has an
-infinite derivative, which creates `0 * inf = NaN` in forward and higher-order
-AD. Internally, `jaxellip` uses a custom-JVP square root whose derivative at zero
-is defined as zero for the constant-zero Carlson argument.
-
-`ellipe` uses a custom JVP with the cancellation-free identity
-
-```text
-dE/dm = -R_D(0, 1 - m, 1) / 6
-```
-
-This avoids the cancellation that appears when differentiating
-`R_F - (m / 3) R_D` near `m = 1`. `ellipk` and `ellipkm1` use autodiff through
-their value computations.
-
-Boundary behavior matches the real-valued SciPy contract:
-
-- `ellipk(1) = inf`, and `ellipk(m) = nan` for `m > 1`
-- `ellipe(1) = 1`, and `ellipe(m) = nan` for `m > 1`
-- `ellipkm1(0) = inf`, and `ellipkm1(x) = nan` for `x < 0`
-
-Values at the poles are exact. The true derivative at the exact pole diverges;
-the test suite checks derivatives by approaching the pole from the valid domain.
-Out-of-domain values and gradients are `nan`, isolated per element in batched
-JAX transforms.
-
-The test suite compares values, reverse-mode gradients, forward-mode JVPs,
-`jacfwd`/`jacrev`, and second derivatives against `mpmath` references over
-domain-spanning grids, including large negative `m`, `m -> 1`, and tiny-to-huge
-`ellipkm1` arguments.
-
-Speed is part of the test suite (`tests/test_speed.py`): each case fails if
-jaxellip is slower than a per-case multiple of SciPy on the same input (warm JIT,
-minimum of several runs). The thresholds are tunable knobs in
-`SPEED_RATIO_THRESHOLDS` -- loose ceilings, not targets, since wall-clock ratios
-vary by machine. The checks carry the `speed` marker, so they can be skipped with
-`uv run pytest -m "not speed"`.
+- **Accuracy.** Values agree with both to about `1e-14` relative. Derivatives, in forward, reverse, and second-order modes, agree with `mpmath`'s analytic derivatives to about `1e-13` (first order) and `1e-15` (second order). This holds over the whole domain: `m` down to `-1e308`, up to the `m -> 1` singularity, and `ellipkm1` for `x` from `1e-308` to `1e308`.
+- **Speed.** With a warm JIT cache on CPU, `jaxellip` is faster than `scipy.special` on every tested input (up to about 1.6x), except `ellipe` at very large `|m|`, where it is within about 1.1x.
 
 ## Developer Guide
 
@@ -113,11 +66,6 @@ Install:
 1. [Visual Studio Code](https://code.visualstudio.com/)
 2. [uv](https://docs.astral.sh/uv/)
 3. [just](https://just.systems/)
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-brew install just
-```
 
 Clone and set up:
 
