@@ -30,12 +30,12 @@ type NumericFunction = Callable[[NumericArray], NumericArray]
 # These are failure ceilings, not goals. Current warm-CPU ratios sit well below
 # each value; tighten them as the implementation gets faster.
 SPEED_RATIO_THRESHOLDS: dict[str, float] = {
-    "ellipk broad": 2.0,
-    "ellipe broad": 2.0,
-    "ellipk large-|m|": 2.0,
-    "ellipe large-|m|": 2.0,
-    "ellipkm1 small-x": 2.0,
-    "ellipkm1 large-x": 2.0,
+    "ellipk broad": 0.66,
+    "ellipe broad": 0.66,
+    "ellipk large-|m|": 0.86,
+    "ellipe large-|m|": 1.11,
+    "ellipkm1 small-x": 0.82,
+    "ellipkm1 large-x": 0.61,
 }
 TIMING_REPEATS = 9
 

@@ -15,11 +15,11 @@ jax.config.update("jax_enable_x64", True)
 type ScalarFunction = Callable[[jax.Array], jax.Array]
 type ReferenceFunction = Callable[[float], float]
 
-VALUE_RTOL = 1e-13
-SCIPY_RTOL = 1e-12
-DERIVATIVE_RTOL = 1e-12
+VALUE_RTOL = 1.09e-14
+SCIPY_RTOL = 1.09e-14
+DERIVATIVE_RTOL = 7.21e-14
 DERIVATIVE_ATOL = 1e-300
-HESSIAN_RTOL = 1e-11
+HESSIAN_RTOL = 2.3e-15
 HESSIAN_ATOL = 1e-300
 
 
