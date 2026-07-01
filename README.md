@@ -57,7 +57,7 @@ Edge cases match SciPy: `ellipk(1)` is `inf`, `ellipe(1)` is `1`, `ellipkm1(0)` 
 `jaxellip` is tested against `mpmath` (a high-precision reference) and `scipy.special`:
 
 - **Accuracy.** Values agree with both to about `1e-14` relative. Derivatives, in forward, reverse, and second-order modes, agree with `mpmath`'s analytic derivatives to about `1e-13` (first order) and `1e-15` (second order). This holds over the whole domain: `m` down to `-1e308`, up to the `m -> 1` singularity, and `ellipkm1` for `x` from `1e-308` to `1e308`.
-- **Speed.** With a warm JIT cache on CPU, `jaxellip` is faster than `scipy.special` on every tested input (up to about 1.6x), except `ellipe` at very large `|m|`, where it is within about 1.1x.
+- **Speed.** `just benchmark` compares warm CPU runtimes against `scipy.special`. It is a measurement command, not a release gate, because wall-clock ratios depend on the machine running them.
 
 ## Developer Guide
 
@@ -82,6 +82,7 @@ Repository layout:
 
 - `src/jaxellip/`: package code
 - `tests/`: tests against SciPy and JAX autodiff
+- `benchmarks/`: performance comparison against SciPy
 - `pyproject.toml`: package metadata and tool settings
 - `uv.lock`: locked dependency versions
 - `justfile`: development commands
@@ -92,4 +93,5 @@ Common commands:
 just test    # run tests
 just check   # run all checks
 just format  # format code
+just benchmark
 ```
