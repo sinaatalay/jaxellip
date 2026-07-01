@@ -57,7 +57,7 @@ Edge cases match SciPy: `ellipk(1)` is `inf`, `ellipe(1)` is `1`, `ellipkm1(0)` 
 `jaxellip` is tested against `mpmath` (a high-precision reference) and `scipy.special`:
 
 - **Accuracy.** Values agree with both to about `1e-14` relative. Derivatives, in forward, reverse, and second-order modes, agree with `mpmath`'s analytic derivatives to about `1e-13` (first order) and `1e-15` (second order). This holds over the whole domain: `m` down to `-1e308`, up to the `m -> 1` singularity, and `ellipkm1` for `x` from `1e-308` to `1e308`.
-- **Speed.** The test suite checks that warm CPU runtimes stay within loose multiples of `scipy.special`.
+- **Speed.** Warm CPU runtimes are comparable to `scipy.special` in the tested cases. Exact ratios depend on the device, runner load, JAX/XLA version, and SciPy build, so the test suite checks only that there are no large performance regressions.
 
 ## Developer Guide
 
