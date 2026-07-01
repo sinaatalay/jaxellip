@@ -1,4 +1,6 @@
-__version__ = "0.0.1"
+from importlib.metadata import version
+
+__version__ = version("jaxellip")
 
 from .elliptic_functions_and_integrals import (
     ellipe,

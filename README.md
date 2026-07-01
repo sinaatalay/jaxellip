@@ -2,11 +2,10 @@
 
 
 [![test](https://github.com/sinaatalay/jaxellip/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/sinaatalay/jaxellip/actions/workflows/test.yaml)
-[![coverage](https://coverage-badge.samuelcolvin.workers.dev/sinaatalay/jaxellip.svg)](https://coverage-badge.samuelcolvin.workers.dev/redirect/sinaatalay/jaxellip)
 [![pypi-version](<https://img.shields.io/pypi/v/jaxellip?label=PyPI%20version&color=rgb(0%2C79%2C144)>)](https://pypi.python.org/pypi/jaxellip)
 [![pypi-downloads](<https://img.shields.io/pepy/dt/jaxellip?label=PyPI%20downloads&color=rgb(0%2C%2079%2C%20144)>)](https://pypistats.org/packages/jaxellip)
 
-Elliptic integrals are available in `scipy.special`, but are not implemented in `jax.scipy.special`, making them neither differentiable nor compatible with JAX’s JIT compilation. This package provides JAX-compatible implementations of several elliptic integrals from `scipy.special`: `ellipk`, `ellipkm1`, and `ellipe`. The results have been tested against `scipy.special` to ensure accuracy and performance (see [tests](https://github.com/sinaatalay/jaxellip/tree/main/tests/test_jaxellip.py)).
+Elliptic integrals are available in `scipy.special`, but are not implemented in `jax.scipy.special`, making them neither differentiable nor compatible with JAX’s JIT compilation. This package provides JAX-compatible implementations of several elliptic integrals from `scipy.special`: `ellipk`, `ellipkm1`, and `ellipe`. The results are tested against arbitrary-precision `mpmath` references and cross-checked against `scipy.special` (see [tests](https://github.com/sinaatalay/jaxellip/tree/main/tests/test_jaxellip.py)).
 
 ## Usage
 
@@ -45,68 +44,52 @@ $$
 E(m) = \int_0^{\pi/2} \sqrt{1 - m \sin^2 \theta}  d\theta
 $$
 
+## Numerical Method
+
+`ellipk` and `ellipe` use the same Cephes minimax polynomials as SciPy: a degree-10 polynomial in the complementary parameter $1 - m$ plus a logarithmic term, with negative $m$ reduced to $[0, 1)$ by the Landen transformation. `ellipkm1(x)` evaluates $K(1 - x)$ from $x$ directly (never forming $1 - x$) and uses a logarithmic series for $x < 10^{-8}$. The forward pass does not iterate.
+
+Derivatives use exact custom JVP rules instead of differentiating the polynomial. Each reduces to the Carlson symmetric integral $R_D$ (for example, $dK/dm = R_D(0, 1, 1-m)/6$), evaluated by a short fixed iteration whose only zero argument is handled in closed form. This makes `jaxellip` differentiable in every JAX mode (forward, reverse, and higher order such as `jax.hessian`), so it stays correct inside a larger function that is differentiated as a whole.
+
+Edge cases match SciPy: `ellipk(1)` is `inf`, `ellipe(1)` is `1`, `ellipkm1(0)` is `inf`, and out-of-domain inputs (`m > 1`, or `x < 0`) return `NaN` for both value and gradient.
+
+## Comparison against SciPy
+
+`jaxellip` is tested against `mpmath` (a high-precision reference) and `scipy.special`:
+
+- **Accuracy.** Values agree with both to about `1e-14` relative. Derivatives, in forward, reverse, and second-order modes, agree with `mpmath`'s analytic derivatives to about `1e-13` (first order) and `1e-15` (second order). This holds over the whole domain: `m` down to `-1e308`, up to the `m -> 1` singularity, and `ellipkm1` for `x` from `1e-308` to `1e308`.
+- **Speed.** Warm CPU runtimes are comparable to `scipy.special` in the tested cases. Exact ratios depend on the device, runner load, JAX/XLA version, and SciPy build, so the test suite checks only that there are no large performance regressions.
+
 ## Developer Guide
 
-1. Install [Hatch](https://hatch.pypa.io/latest/). The installation guide for Hatch can be found [here](https://hatch.pypa.io/latest/install/#installation).
-   
-    Hatch is a Python project manager. It mainly allows you to define the virtual environments you need in [`pyproject.toml`](https://github.com/sinaatalay/jaxellip/blob/main/pyproject.toml). Then, it takes care of the rest. Also, you don't need to install Python. Hatch will install it when you follow the steps below.
+Install:
 
-2. Clone the repository.
-    ```
-    git clone https://github.com/sinaatalay/jaxellip.git
-    ```
-3. Go to the `jaxellip` directory.
-    ```
-    cd jaxellip
-    ```
-4. Start using one of the virtual environments by activating it in the terminal.
+1. [Visual Studio Code](https://code.visualstudio.com/)
+2. [uv](https://docs.astral.sh/uv/)
+3. [just](https://just.systems/)
 
-    Default development environment with Python 3.13:
-    ```bash
-    hatch shell default
-    ```
+Clone and set up:
 
-    The same environment, but with Python 3.10 (or 3.11, 3.12, 3.13):
-    ```bash
-    hatch shell test.py3.10
-    ```
-
-5. Finally, activate the virtual environment in your integrated development environment (IDE). In Visual Studio Code:
-
-    - Press `Ctrl+Shift+P`.
-    - Type `Python: Select Interpreter`.
-    - Select one of the virtual environments created by Hatch.
-
-### Hatch scripts
-
-Hatch allows you to run scripts defined in [`pyproject.toml`](https://github.com/sinaatalay/jaxellip/blob/main/pyproject.toml).
-
-Format the code with `black` and `ruff`:
 ```bash
-hatch run format
+git clone https://github.com/sinaatalay/jaxellip.git
+cd jaxellip
+just sync
+code .
 ```
 
-Lint the code with `ruff`:
-```bash
-hatch run lint
-```
+Use `.venv` as the Python interpreter in VS Code.
 
-Check the types with `pyright`:
-```bash
-hatch run check-types
-```
+Repository layout:
 
-Run the pre-commit hooks:
-```bash
-hatch run precommit
-```
+- `src/jaxellip/`: package code
+- `tests/`: tests against SciPy and JAX autodiff
+- `pyproject.toml`: package metadata and tool settings
+- `uv.lock`: locked dependency versions
+- `justfile`: development commands
 
-Run the tests:
-```bash
-hatch run test
-```
+Common commands:
 
-Run the tests and generate a coverage report:
 ```bash
-hatch run test-and-report
+just test    # run tests
+just check   # run all checks
+just format  # format code
 ```

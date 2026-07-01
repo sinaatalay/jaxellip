@@ -8,8 +8,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-  - package-ecosystem: "pip"
-    # pyproject.toml will be checked
+  - package-ecosystem: "uv"
+    # uv.lock and pyproject.toml will be checked.
     directory: "/"
     schedule:
       interval: "weekly"

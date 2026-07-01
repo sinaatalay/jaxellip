@@ -1,35 +1,60 @@
 name: Publish a release
 
-# GitHub events that triggers the workflow:
 on:
   release:
     types:
       - published
 
 jobs:
-  call_test_workflow:
+  test:
     name: Run Tests
     uses: ./.github/workflows/test.yaml
 
-  upload_release_files:
-    name: Create release files
+  build:
+    name: Build Package
     needs:
-      - call_test_workflow
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install just
+        uses: taiki-e/install-action@just
+
+      - name: Check if the release tag matches the version
+        run: |
+          VERSION="$(uv version --short)"
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+
+      - name: Build
+        run: just build
+
+      - name: Upload the wheel and source distribution as artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist
+
+  upload_release_files:
+    name: Add assets to the GitHub Release
+    needs:
+      - build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@v5
-
-      - uses: actions/checkout@v5
-
-      - name: Install Hatch
-        uses: pypa/hatch@install
-
-      - name: Build
-        run: |
-          hatch build
+      - name: Download the build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
 
       - name: Upload the package as release assets
         uses: softprops/action-gh-release@v2
@@ -47,24 +72,11 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Install Hatch
-        uses: pypa/hatch@install
-
-      - name: Check if the release tag matches the version
-        uses: samuelcolvin/check-python-version@v5
+      - name: Download the build artifacts
+        uses: actions/download-artifact@v8
         with:
-          version_file_path: jaxellip/__init__.py
-
-      - name: Build
-        run: |
-          hatch build
+          name: dist
+          path: dist
 
       - name: Upload package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
-      - name: Upload the wheel and source distribution as artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: dist
