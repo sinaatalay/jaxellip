@@ -38,7 +38,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-src = ["src", "tests", "benchmarks"]
+src = ["src", "tests"]
 target-version = "py312"
 
 [tool.ruff.format]
@@ -96,3 +96,6 @@ addopts = [
     "--strict-config",
 ]
 testpaths = ["tests"]
+markers = [
+    "speed: wall-clock speed checks vs SciPy",
+]

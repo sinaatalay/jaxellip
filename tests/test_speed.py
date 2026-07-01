@@ -1,4 +1,10 @@
-"""Compare warm CPU runtimes against scipy.special."""
+"""Speed checks: jaxellip must stay within a tunable multiple of SciPy.
+
+Unlike correctness, wall-clock ratios vary with machine and load, so the
+thresholds below are deliberately loose ceilings, not targets. Each timing is
+the minimum of several warm runs. The module carries the ``speed`` marker, so
+the checks can be selected or deselected explicitly with pytest.
+"""
 
 import math
 import time
@@ -8,6 +14,7 @@ from typing import cast
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 import scipy.special
 
 import jaxellip
@@ -17,6 +24,15 @@ jax.config.update("jax_enable_x64", True)
 type NumericArray = jax.Array | np.ndarray
 type NumericFunction = Callable[[NumericArray], NumericArray]
 
+# A case fails if jaxellip is slower than this multiple of SciPy.
+SPEED_RATIO_THRESHOLDS: dict[str, float] = {
+    "ellipk broad": 2.5,
+    "ellipe broad": 2.5,
+    "ellipk large-|m|": 2.5,
+    "ellipe large-|m|": 5.0,
+    "ellipkm1 small-x": 3.0,
+    "ellipkm1 large-x": 3.0,
+}
 TIMING_REPEATS = 9
 
 _BROAD = jnp.concatenate(
@@ -26,7 +42,7 @@ _LARGE_NEGATIVE = -jnp.geomspace(1e12, 1e308, 100000)
 _SMALL_X = jnp.geomspace(1e-308, 1e-7, 100000)
 _LARGE_X = jnp.geomspace(1.0, 1e308, 100000)
 
-BENCHMARK_CASES: list[tuple[str, str, jax.Array]] = [
+SPEED_CASES: list[tuple[str, str, jax.Array]] = [
     ("ellipk broad", "ellipk", _BROAD),
     ("ellipe broad", "ellipe", _BROAD),
     ("ellipk large-|m|", "ellipk", _LARGE_NEGATIVE),
@@ -45,27 +61,28 @@ def _min_runtime(call: Callable[[], object]) -> float:
     return best
 
 
-def _benchmark_case(label: str, function_name: str, values: jax.Array) -> str:
+@pytest.mark.speed
+@pytest.mark.parametrize(
+    ("label", "function_name", "values"),
+    SPEED_CASES,
+    ids=[case[0] for case in SPEED_CASES],
+)
+def test_speed_within_threshold(
+    label: str, function_name: str, values: jax.Array
+) -> None:
     jax_function = cast(NumericFunction, getattr(jaxellip, function_name))
     scipy_function = cast(NumericFunction, getattr(scipy.special, function_name))
     scipy_input = np.asarray(values)
 
+    # block_until_ready forces JAX's async dispatch to finish so we time the real
+    # computation; the first call also triggers the one-time JIT compilation.
     jax.block_until_ready(jax_function(values))
 
     jax_time = _min_runtime(lambda: jax.block_until_ready(jax_function(values)))
     scipy_time = _min_runtime(lambda: scipy_function(scipy_input))
     ratio = jax_time / scipy_time
 
-    return (
-        f"{label}: jaxellip {jax_time:.6f}s, "
-        f"scipy {scipy_time:.6f}s, ratio {ratio:.2f}x"
+    threshold = SPEED_RATIO_THRESHOLDS[label]
+    assert ratio < threshold, (
+        f"{label}: jaxellip is {ratio:.2f}x SciPy, over the {threshold:.1f}x limit"
     )
-
-
-def main() -> None:
-    for label, function_name, values in BENCHMARK_CASES:
-        print(_benchmark_case(label, function_name, values))  # noqa: T201
-
-
-if __name__ == "__main__":
-    main()
